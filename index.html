@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AAASDREAM</title>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.157.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.157.0/examples/jsm/"
+      }
+    }
+  </script>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap">
+  <style>
+    :root {
+      --bg-color: #1a1a1a;
+      --bg-secondary: #242424;
+      --text-color: #f0f0f0;
+      --text-secondary: #a0a0a0;
+      --accent-color: #0496ff;
+      --accent-hover: #027bce;
+      --error-color: #ff3860;
+      --success-color: #23d160;
+      --border-color: #333333;
+      --shadow-color: rgba(0, 0, 0, 0.4);
+    }
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Inter', sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      overflow: hidden;
+      height: 100vh;
+    }
+    
+    .app-container {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      position: relative;
+    }
+    
+    .viewer-container {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    #viewer {
+      width: 100%;
+      height: 100%;
+      display: block;
+      outline: none;
+    }
+    
+    .toolbar {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      z-index: 10;
+      display: flex;
+      gap: 12px;
+    }
+    
+    .toolbar-btn {
+      background-color: var(--bg-secondary);
+      color: var(--text-color);
+      border: none;
+      border-radius: 4px;
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 16px;
+      box-shadow: 0 2px 8px var(--shadow-color);
+      transition: all 0.2s ease;
+    }
+    
+    .toolbar-btn:hover {
+      background-color: var(--border-color);
+    }
+    
+    .toolbar-btn:active {
+      transform: translateY(1px);
+    }
+    
+    .toolbar-btn.active {
+      background-color: var(--accent-color);
+      color: #ffffff;
+    }
+    
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 100;
+      background-color: rgba(0, 0, 0, 0.7);
+      animation: fadeIn 0.3s;
+    }
+    
+    .modal-content {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background-color: var(--bg-secondary);
+      border-radius: 8px;
+      box-shadow: 0 4px 24px var(--shadow-color);
+      width: 90%;
+      max-width: 500px;
+      padding: 24px;
+      animation: slideIn 0.3s;
+    }
+    
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    
+    .modal-title {
+      font-size: 20px;
+      font-weight: 600;
+    }
+    
+    .close-btn {
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      font-size: 24px;
+      cursor: pointer;
+      transition: color 0.2s;
+    }
+    
+    .close-btn:hover {
+      color: var(--text-color);
+    }
+    
+    .modal-body {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    
+    .input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    
+    .input-label {
+      font-size: 14px;
+      color: var(--text-secondary);
+    }
+    
+    .url-input {
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      padding: 12px;
+      font-size: 14px;
+      font-family: inherit;
+      width: 100%;
+      transition: border-color 0.2s;
+    }
+    
+    .url-input:focus {
+      outline: none;
+      border-color: var(--accent-color);
+    }
+    
+    .divider {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 8px 0;
+    }
+    
+    .divider-line {
+      flex: 1;
+      height: 1px;
+      background-color: var(--border-color);
+    }
+    
+    .divider-text {
+      color: var(--text-secondary);
+      font-size: 14px;
+      padding: 0 8px;
+    }
+    
+    .file-input-wrapper {
+      position: relative;
+      overflow: hidden;
+      display: inline-block;
+      width: 100%;
+    }
+    
+    .file-input-wrapper input[type=file] {
+      position: absolute;
+      left: 0;
+      top: 0;
+      opacity: 0;
+      width: 100%;
+      height: 100%;
+      cursor: pointer;
+    }
+    
+    .action-btn {
+      background-color: var(--accent-color);
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 12px 20px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background-color 0.2s;
+      width: 100%;
+      text-align: center;
+    }
+    
+    .action-btn:hover {
+      background-color: var(--accent-hover);
+    }
+    
+    .action-btn:active {
+      transform: translateY(1px);
+    }
+    
+    .action-btn.secondary {
+      background-color: transparent;
+      border: 1px solid var(--accent-color);
+      color: var(--accent-color);
+    }
+    
+    .action-btn.secondary:hover {
+      background-color: rgba(4, 150, 255, 0.1);
+    }
+    
+    .file-name {
+      display: block;
+      margin-top: 8px;
+      font-size: 14px;
+      color: var(--text-secondary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
+    }
+    
+    .loading-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.7);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+      display: none;
+    }
+    
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid rgba(4, 150, 255, 0.3);
+      border-radius: 50%;
+      border-top-color: var(--accent-color);
+      animation: spin 1s infinite linear;
+      margin-bottom: 16px;
+    }
+    
+    .message-overlay {
+      position: absolute;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 12px 20px;
+      border-radius: 4px;
+      font-size: 14px;
+      font-weight: 500;
+      box-shadow: 0 4px 12px var(--shadow-color);
+      z-index: 40;
+      display: none;
+      animation: fadeInUp 0.3s;
+    }
+    
+    .error-message {
+      background-color: var(--error-color);
+      color: white;
+    }
+    
+    .info-message {
+      background-color: var(--accent-color);
+      color: white;
+    }
+    
+    .controls-hint {
+      position: absolute;
+      bottom: 16px;
+      left: 16px;
+      background-color: var(--bg-secondary);
+      color: var(--text-secondary);
+      padding: 8px 12px;
+      border-radius: 4px;
+      font-size: 12px;
+      box-shadow: 0 2px 8px var(--shadow-color);
+      opacity: 0.8;
+      transition: opacity 0.2s;
+    }
+    
+    .controls-hint:hover {
+      opacity: 1;
+    }
+    
+    .logo {
+      position: absolute;
+      bottom: 16px;
+      right: 16px;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      opacity: 0.5;
+    }
+    
+    .logo span {
+      color: var(--accent-color);
+    }
+    
+    /* Animations */
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    
+    @keyframes slideIn {
+      from { 
+        opacity: 0;
+        transform: translate(-50%, -60%);
+      }
+      to { 
+        opacity: 1;
+        transform: translate(-50%, -50%);
+      }
+    }
+    
+    @keyframes fadeInUp {
+      from { 
+        opacity: 0;
+        transform: translate(-50%, 20px);
+      }
+      to { 
+        opacity: 1;
+        transform: translate(-50%, 0);
+      }
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    /* Media Queries */
+    @media (max-width: 600px) {
+      .toolbar {
+        top: 12px;
+        left: 12px;
+      }
+      
+      .toolbar-btn {
+        width: 36px;
+        height: 36px;
+        font-size: 14px;
+      }
+      
+      .controls-hint, .logo {
+        font-size: 10px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-container">
+    <div class="viewer-container">
+      <canvas id="viewer"></canvas>
+      
+      <div class="toolbar">
+        <button id="openLoadMenu" class="toolbar-btn" title="Load Model">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 15v4c0 1.1.9 2 2 2h14a2 2 0 0 0 2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+          </svg>
+        </button>
+      </div>
+      
+      <div class="loading-overlay" id="loading">
+        <div class="spinner"></div>
+        <div>Loading model...</div>
+      </div>
+      
+      <div class="message-overlay error-message" id="error-message"></div>
+      <div class="message-overlay info-message" id="info-message"></div>
+      
+      <div class="controls-hint">
+        Left mouse: Rotate | Right mouse: Pan | Scroll: Zoom
+      </div>
+      
+      <div class="logo">AAASDREAM</div>
+    </div>
+    
+    <!-- Load Model Modal -->
+    <div id="loadModelModal" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 class="modal-title">Load GLB Model</h2>
+          <button class="close-btn" id="closeLoadModal">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="input-group">
+            <label class="input-label">Enter GLB model URL</label>
+            <input type="text" id="modelUrl" class="url-input" placeholder="https://example.com/model.glb" />
+          </div>
+          
+          <button id="loadUrlBtn" class="action-btn">Load from URL</button>
+          
+          <div class="divider">
+            <div class="divider-line"></div>
+            <div class="divider-text">OR</div>
+            <div class="divider-line"></div>
+          </div>
+          
+          <div class="file-input-wrapper">
+            <button class="action-btn secondary">Select GLB file</button>
+            <input type="file" id="fileInput" accept=".glb" />
+          </div>
+          <span id="fileName" class="file-name"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <script type="module">
+    // Import Three.js core and necessary components as ES modules
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+    import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+  
+    // Global variables
+    let scene, camera, renderer, controls, model;
+    let isModelLoaded = false;
+    let lastModelUrl = '';
+    
+    // DOM elements
+    const modelUrlInput = document.getElementById('modelUrl');
+    const loadUrlBtn = document.getElementById('loadUrlBtn');
+    const fileInput = document.getElementById('fileInput');
+    const fileNameElement = document.getElementById('fileName');
+    const loadingElement = document.getElementById('loading');
+    const errorMessageElement = document.getElementById('error-message');
+    const infoMessageElement = document.getElementById('info-message');
+    
+    // Modal elements
+    const loadModelModal = document.getElementById('loadModelModal');
+    const openLoadMenu = document.getElementById('openLoadMenu');
+    const closeLoadModal = document.getElementById('closeLoadModal');
+    
+    // Event listeners
+    loadUrlBtn.addEventListener('click', loadModelFromUrl);
+    fileInput.addEventListener('change', loadModelFromFile);
+    window.addEventListener('resize', onWindowResize);
+    
+    // Modal event listeners
+    openLoadMenu.addEventListener('click', () => {
+      loadModelModal.style.display = 'block';
+    });
+    
+    closeLoadModal.addEventListener('click', () => {
+      loadModelModal.style.display = 'none';
+    });
+    
+    // Close modal when clicking outside
+    window.addEventListener('click', (event) => {
+      if (event.target === loadModelModal) {
+        loadModelModal.style.display = 'none';
+      }
+    });
+    
+    // Initialize on window load
+    window.onload = function() {
+      try {
+        // Check WebGL support
+        if (!checkWebGLSupport()) return;
+        
+        // Initialize Three.js scene
+        initScene();
+        
+        // Check URL parameters for model link
+        const urlParams = new URLSearchParams(window.location.search);
+        const modelUrlParam = urlParams.get('url');
+        
+        if (modelUrlParam) {
+          // If URL parameter contains model link, load it automatically
+          const decodedUrl = decodeURIComponent(modelUrlParam);
+          modelUrlInput.value = decodedUrl;
+          loadModel(decodedUrl);
+        } else {
+          // Otherwise show the load model modal
+          showInfoMessage('Please load a GLB model to view');
+          setTimeout(() => {
+            loadModelModal.style.display = 'block';
+          }, 300);
+        }
+      } catch (error) {
+        console.error('Error during initialization:', error);
+        showErrorMessage('Failed to initialize application');
+      }
+    };
+    
+    // Initialize Three.js scene
+    function initScene() {
+      try {
+        // Create scene
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x242424);
+        
+        // Set up lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+        scene.add(ambientLight);
+        
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(1, 2, 3);
+        scene.add(directionalLight);
+        
+        const hemisphereLight = new THREE.HemisphereLight(0xffffff, 0x404040, 0.5);
+        scene.add(hemisphereLight);
+        
+        // Create camera
+        camera = new THREE.PerspectiveCamera(
+          45,
+          window.innerWidth / window.innerHeight,
+          0.1,
+          1000
+        );
+        camera.position.set(0, 0, 5);
+        
+        // Create renderer
+        const canvas = document.getElementById('viewer');
+        renderer = new THREE.WebGLRenderer({ 
+          canvas, 
+          antialias: true,
+          alpha: true
+        });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        
+        // Set renderer options
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1;
+        
+        // Handle newer Three.js versions
+        if (renderer.outputColorSpace !== undefined) {
+          renderer.outputColorSpace = THREE.SRGBColorSpace;
+        } else {
+          // Fallback for older versions
+          renderer.outputEncoding = THREE.sRGBEncoding;
+        }
+        
+        // Create orbit controls
+        controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        
+        // Start animation loop
+        animate();
+      } catch (error) {
+        console.error('Error initializing scene:', error);
+        showErrorMessage('Failed to initialize 3D engine');
+      }
+    }
+    
+    // Load model from URL
+    function loadModelFromUrl() {
+      const url = modelUrlInput.value.trim();
+      
+      if (!url) {
+        showErrorMessage('Please enter a valid GLB model URL');
+        return;
+      }
+      
+      try {
+        // Close modal
+        loadModelModal.style.display = 'none';
+        
+        // Update URL parameter without refreshing page
+        const newUrl = new URL(window.location.href);
+        newUrl.searchParams.set('url', url);
+        window.history.pushState({}, '', newUrl);
+        
+        loadModel(url);
+      } catch (error) {
+        console.error('Error preparing model load:', error);
+        showErrorMessage('Failed to process URL');
+      }
+    }
+    
+    // Load model from file
+    function loadModelFromFile(event) {
+      const file = event.target.files[0];
+      
+      if (!file) return;
+      
+      try {
+        // Validate file type
+        if (!file.name.toLowerCase().endsWith('.glb')) {
+          showErrorMessage('Please select a valid GLB file');
+          return;
+        }
+        
+        fileNameElement.textContent = file.name;
+        
+        // Close modal
+        loadModelModal.style.display = 'none';
+        
+        // Create URL for the file
+        const fileUrl = URL.createObjectURL(file);
+        lastModelUrl = fileUrl;
+        
+        loadModel(fileUrl, () => {
+          // Release the object URL when model loading is complete
+          URL.revokeObjectURL(fileUrl);
+        });
+      } catch (error) {
+        console.error('Error processing file:', error);
+        showErrorMessage('Failed to process file');
+      }
+    }
+    
+    // Load GLB model
+    function loadModel(url, onComplete) {
+      // Save URL for retry
+      lastModelUrl = url;
+      
+      // Clear previous error messages
+      hideMessages();
+      
+      // Clear previous model
+      if (model) {
+        scene.remove(model);
+        disposeModel(model);
+        model = null;
+      }
+      
+      isModelLoaded = false;
+      loadingElement.style.display = 'flex';
+      
+      try {
+        // Create DRACO decoder
+        const dracoLoader = new DRACOLoader();
+        dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.6/');
+        
+        // Create GLTF loader
+        const loader = new GLTFLoader();
+        loader.setDRACOLoader(dracoLoader);
+        
+        // Set cross-origin mode to try to resolve CORS issues
+        loader.setCrossOrigin('anonymous');
+        
+        // Load model
+        loader.load(
+          url,
+          function (gltf) {
+            try {
+              model = gltf.scene;
+              
+              // Calculate model bounding box
+              const box = new THREE.Box3().setFromObject(model);
+              const size = box.getSize(new THREE.Vector3()).length();
+              const center = box.getCenter(new THREE.Vector3());
+              
+              // Adjust model scale to fit display
+              const maxDimension = Math.max(
+                box.max.x - box.min.x,
+                box.max.y - box.min.y,
+                box.max.z - box.min.z
+              );
+              
+              // Scale model if too large or too small
+              if (maxDimension > 10 || maxDimension < 0.1) {
+                const scale = maxDimension > 10 ? 10 / maxDimension : 1 / maxDimension;
+                model.scale.set(scale, scale, scale);
+                
+                // Recalculate bounding box
+                box.setFromObject(model);
+                box.getCenter(center);
+                box.getSize(new THREE.Vector3()).length();
+              }
+              
+              // Reset model position to center
+              model.position.x = -center.x;
+              model.position.y = -center.y;
+              model.position.z = -center.z;
+              
+              // Add model to scene
+              scene.add(model);
+              
+              // Adjust camera position to fit model
+              const viewerContainer = document.querySelector('.viewer-container');
+              const aspect = viewerContainer.clientWidth / viewerContainer.clientHeight;
+              camera.position.copy(center);
+              
+              // Calculate appropriate camera distance
+              const fov = camera.fov * (Math.PI / 180);
+              const distance = Math.abs(size / (2 * Math.tan(fov / 2)));
+              
+              // Set camera position offset for better viewing angle
+              camera.position.z = distance * 1.5;
+              camera.position.y = distance * 0.3;
+              camera.position.x = distance * 0.5;
+              camera.lookAt(center);
+              
+              // Update orbit controls target
+              controls.target.copy(center);
+              controls.update();
+              
+              // Hide loading overlay
+              loadingElement.style.display = 'none';
+              isModelLoaded = true;
+              
+              // Execute completion callback if provided
+              if (typeof onComplete === 'function') {
+                onComplete();
+              }
+            } catch (error) {
+              console.error('Error processing loaded model:', error);
+              loadingElement.style.display = 'none';
+              showErrorMessage('Failed to process model');
+              
+              if (typeof onComplete === 'function') {
+                onComplete();
+              }
+            }
+          },
+          function (xhr) {
+            // Loading progress
+            const percent = xhr.total ? (xhr.loaded / xhr.total) * 100 : 0;
+            console.log(`Loading progress: ${Math.round(percent)}%`);
+          },
+          function (error) {
+            // Error handling
+            console.error('Error loading GLB model:', error);
+            loadingElement.style.display = 'none';
+            
+            showErrorMessage('Failed to load GLB model');
+            
+            if (typeof onComplete === 'function') {
+              onComplete();
+            }
+          }
+        );
+      } catch (error) {
+        console.error('Error initializing model loader:', error);
+        loadingElement.style.display = 'none';
+        showErrorMessage('Failed to initialize model loader');
+        
+        if (typeof onComplete === 'function') {
+          onComplete();
+        }
+      }
+    }
+    
+    // Free model resources
+    function disposeModel(model) {
+      if (!model) return;
+      
+      model.traverse(object => {
+        if (object.geometry) {
+          object.geometry.dispose();
+        }
+        
+        if (object.material) {
+          if (Array.isArray(object.material)) {
+            object.material.forEach(material => disposeMaterial(material));
+          } else {
+            disposeMaterial(object.material);
+          }
+        }
+      });
+    }
+    
+    // Free material resources
+    function disposeMaterial(material) {
+      if (!material) return;
+      
+      // Release texture resources
+      Object.keys(material).forEach(prop => {
+        if (!material[prop]) return;
+        if (material[prop].isTexture) {
+          material[prop].dispose();
+        }
+      });
+      
+      material.dispose();
+    }
+    
+    // Handle window resize
+    function onWindowResize() {
+      if (!camera || !renderer) return;
+      
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+    
+    // Animation loop
+    function animate() {
+      requestAnimationFrame(animate);
+      if (controls) controls.update();
+      if (renderer && scene && camera) renderer.render(scene, camera);
+    }
+    
+    // Check WebGL support
+    function checkWebGLSupport() {
+      if (!window.WebGLRenderingContext) {
+        showErrorMessage('Your browser does not support WebGL');
+        return false;
+      }
+      
+      // Try to create WebGL context
+      const canvas = document.createElement('canvas');
+      const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+      
+      if (!gl) {
+        showErrorMessage('WebGL is supported but disabled');
+        return false;
+      }
+      
+      return true;
+    }
+    
+    // Show error message
+    function showErrorMessage(message) {
+      errorMessageElement.textContent = message;
+      errorMessageElement.style.display = 'block';
+      
+      // Auto hide after 5 seconds
+      setTimeout(() => {
+        errorMessageElement.style.display = 'none';
+      }, 5000);
+    }
+    
+    // Show info message
+    function showInfoMessage(message) {
+      infoMessageElement.textContent = message;
+      infoMessageElement.style.display = 'block';
+      
+      // Auto hide after 3 seconds
+      setTimeout(() => {
+        infoMessageElement.style.display = 'none';
+      }, 3000);
+    }
+    
+    // Hide all messages
+    function hideMessages() {
+      errorMessageElement.style.display = 'none';
+      infoMessageElement.style.display = 'none';
+    }
+  </script>
+</body>
+</html> 
