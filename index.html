@@ -15,16 +15,16 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap">
   <style>
     :root {
-      --bg-color: #1a1a1a;
-      --bg-secondary: #242424;
+      --bg-color: #f1ebeb;
+      --bg-secondary: #c8c8c8;
       --text-color: #f0f0f0;
       --text-secondary: #a0a0a0;
       --accent-color: #0496ff;
       --accent-hover: #027bce;
       --error-color: #ff3860;
       --success-color: #23d160;
-      --border-color: #333333;
-      --shadow-color: rgba(0, 0, 0, 0.4);
+      --border-color: #ffffff;
+      --shadow-color: rgba(184, 184, 184, 0.4);
     }
     
     * {
@@ -465,7 +465,7 @@
     import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
   
     // Global variables
-    let scene, camera, renderer, controls, model;
+    let scene, camera, renderer, controls, model, groundPlane;
     let isModelLoaded = false;
     let lastModelUrl = '';
     
@@ -535,23 +535,36 @@
       }
     };
     
-    // Initialize Three.js scene
+    // --- START: CORRECTED initScene FUNCTION ---
     function initScene() {
       try {
         // Create scene
         scene = new THREE.Scene();
         scene.background = new THREE.Color(0x242424);
         
-        // Set up lighting
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+        // Add a soft ambient light to ensure the whole model is lit.
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
         scene.add(ambientLight);
         
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-        directionalLight.position.set(1, 2, 3);
-        scene.add(directionalLight);
+        // Add a strong directional light to create highlights and shadows.
+        // NOTE: Newer Three.js versions use physically-based light units.
+        // A higher intensity value like Math.PI is needed for a visible effect.
+        const directionalLight = new THREE.DirectionalLight(0xffffff, Math.PI * 2);
+        directionalLight.position.set(5, 10, 7.5);
         
-        const hemisphereLight = new THREE.HemisphereLight(0xffffff, 0x404040, 0.5);
-        scene.add(hemisphereLight);
+        // Configure the light to cast shadows
+        directionalLight.castShadow = true;
+        
+        // Configure shadow properties for better quality
+        directionalLight.shadow.mapSize.width = 2048;
+        directionalLight.shadow.mapSize.height = 2048;
+        directionalLight.shadow.camera.near = 0.5;
+        directionalLight.shadow.camera.far = 50;
+        directionalLight.shadow.camera.left = -15;
+        directionalLight.shadow.camera.right = 15;
+        directionalLight.shadow.camera.top = 15;
+        directionalLight.shadow.camera.bottom = -15;
+        scene.add(directionalLight);
         
         // Create camera
         camera = new THREE.PerspectiveCamera(
@@ -560,7 +573,7 @@
           0.1,
           1000
         );
-        camera.position.set(0, 0, 5);
+        camera.position.set(0, 0, 10);
         
         // Create renderer
         const canvas = document.getElementById('viewer');
@@ -575,14 +588,25 @@
         // Set renderer options
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
         renderer.toneMappingExposure = 1;
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
         
-        // Handle newer Three.js versions
-        if (renderer.outputColorSpace !== undefined) {
-          renderer.outputColorSpace = THREE.SRGBColorSpace;
-        } else {
-          // Fallback for older versions
-          renderer.outputEncoding = THREE.sRGBEncoding;
-        }
+        // CRITICAL: Enable shadow mapping in the renderer
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Softer shadow edges
+        
+        // Create a visible ground plane to receive shadows.
+        // NOTE: Use a material that responds to light, not ShadowMaterial.
+        groundPlane = new THREE.Mesh(
+            new THREE.PlaneGeometry(100, 100),
+            new THREE.MeshStandardMaterial({
+                color: 0x808080,
+                side: THREE.DoubleSide
+            })
+        );
+        groundPlane.rotation.x = -Math.PI / 2; // Rotate to be horizontal
+        groundPlane.receiveShadow = true; // Set to receive shadows
+        groundPlane.position.y = -5; // Initial position, will be adjusted
+        scene.add(groundPlane);
         
         // Create orbit controls
         controls = new OrbitControls(camera, renderer.domElement);
@@ -596,25 +620,20 @@
         showErrorMessage('Failed to initialize 3D engine');
       }
     }
+    // --- END: CORRECTED initScene FUNCTION ---
     
     // Load model from URL
     function loadModelFromUrl() {
       const url = modelUrlInput.value.trim();
-      
       if (!url) {
         showErrorMessage('Please enter a valid GLB model URL');
         return;
       }
-      
       try {
-        // Close modal
         loadModelModal.style.display = 'none';
-        
-        // Update URL parameter without refreshing page
         const newUrl = new URL(window.location.href);
         newUrl.searchParams.set('url', url);
         window.history.pushState({}, '', newUrl);
-        
         loadModel(url);
       } catch (error) {
         console.error('Error preparing model load:', error);
@@ -625,27 +644,17 @@
     // Load model from file
     function loadModelFromFile(event) {
       const file = event.target.files[0];
-      
       if (!file) return;
-      
       try {
-        // Validate file type
         if (!file.name.toLowerCase().endsWith('.glb')) {
           showErrorMessage('Please select a valid GLB file');
           return;
         }
-        
         fileNameElement.textContent = file.name;
-        
-        // Close modal
         loadModelModal.style.display = 'none';
-        
-        // Create URL for the file
         const fileUrl = URL.createObjectURL(file);
         lastModelUrl = fileUrl;
-        
         loadModel(fileUrl, () => {
-          // Release the object URL when model loading is complete
           URL.revokeObjectURL(fileUrl);
         });
       } catch (error) {
@@ -656,13 +665,9 @@
     
     // Load GLB model
     function loadModel(url, onComplete) {
-      // Save URL for retry
       lastModelUrl = url;
-      
-      // Clear previous error messages
       hideMessages();
       
-      // Clear previous model
       if (model) {
         scene.remove(model);
         disposeModel(model);
@@ -673,129 +678,102 @@
       loadingElement.style.display = 'flex';
       
       try {
-        // Create DRACO decoder
         const dracoLoader = new DRACOLoader();
         dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.6/');
-        
-        // Create GLTF loader
         const loader = new GLTFLoader();
         loader.setDRACOLoader(dracoLoader);
-        
-        // Set cross-origin mode to try to resolve CORS issues
         loader.setCrossOrigin('anonymous');
         
-        // Load model
         loader.load(
           url,
           function (gltf) {
             try {
               model = gltf.scene;
               
-              // Calculate model bounding box
+              // Traverse the model to enable shadows on every mesh.
+              model.traverse(function(child) {
+                  if (child.isMesh) {
+                      child.castShadow = true;
+                      child.receiveShadow = true;
+                  }
+              });
+              
               const box = new THREE.Box3().setFromObject(model);
               const size = box.getSize(new THREE.Vector3()).length();
               const center = box.getCenter(new THREE.Vector3());
               
-              // Adjust model scale to fit display
               const maxDimension = Math.max(
                 box.max.x - box.min.x,
                 box.max.y - box.min.y,
                 box.max.z - box.min.z
               );
               
-              // Scale model if too large or too small
               if (maxDimension > 10 || maxDimension < 0.1) {
                 const scale = maxDimension > 10 ? 10 / maxDimension : 1 / maxDimension;
                 model.scale.set(scale, scale, scale);
-                
-                // Recalculate bounding box
                 box.setFromObject(model);
                 box.getCenter(center);
                 box.getSize(new THREE.Vector3()).length();
               }
-              
-              // Reset model position to center
+
+              // Adjust the ground plane to be just below the model's lowest point.
+              if (groundPlane) {
+                  groundPlane.position.y = box.min.y;
+              }
+
               model.position.x = -center.x;
-              model.position.y = -center.y;
+              model.position.y = -center.y + (box.getSize(new THREE.Vector3()).y / 2) - box.min.y;
               model.position.z = -center.z;
               
-              // Add model to scene
               scene.add(model);
               
-              // Adjust camera position to fit model
-              const viewerContainer = document.querySelector('.viewer-container');
-              const aspect = viewerContainer.clientWidth / viewerContainer.clientHeight;
-              camera.position.copy(center);
-              
-              // Calculate appropriate camera distance
+              // Adjust camera to fit model
               const fov = camera.fov * (Math.PI / 180);
               const distance = Math.abs(size / (2 * Math.tan(fov / 2)));
               
-              // Set camera position offset for better viewing angle
-              camera.position.z = distance * 1.5;
-              camera.position.y = distance * 0.3;
-              camera.position.x = distance * 0.5;
+              camera.position.z = center.z + distance * 1.5;
+              camera.position.y = center.y + distance * 0.5;
+              camera.position.x = center.x + distance * 0.5;
               camera.lookAt(center);
               
-              // Update orbit controls target
               controls.target.copy(center);
               controls.update();
               
-              // Hide loading overlay
               loadingElement.style.display = 'none';
               isModelLoaded = true;
               
-              // Execute completion callback if provided
-              if (typeof onComplete === 'function') {
-                onComplete();
-              }
+              if (typeof onComplete === 'function') onComplete();
             } catch (error) {
               console.error('Error processing loaded model:', error);
               loadingElement.style.display = 'none';
               showErrorMessage('Failed to process model');
-              
-              if (typeof onComplete === 'function') {
-                onComplete();
-              }
+              if (typeof onComplete === 'function') onComplete();
             }
           },
           function (xhr) {
-            // Loading progress
             const percent = xhr.total ? (xhr.loaded / xhr.total) * 100 : 0;
             console.log(`Loading progress: ${Math.round(percent)}%`);
           },
           function (error) {
-            // Error handling
             console.error('Error loading GLB model:', error);
             loadingElement.style.display = 'none';
-            
             showErrorMessage('Failed to load GLB model');
-            
-            if (typeof onComplete === 'function') {
-              onComplete();
-            }
+            if (typeof onComplete === 'function') onComplete();
           }
         );
       } catch (error) {
         console.error('Error initializing model loader:', error);
         loadingElement.style.display = 'none';
         showErrorMessage('Failed to initialize model loader');
-        
-        if (typeof onComplete === 'function') {
-          onComplete();
-        }
+        if (typeof onComplete === 'function') onComplete();
       }
     }
     
     // Free model resources
     function disposeModel(model) {
       if (!model) return;
-      
       model.traverse(object => {
-        if (object.geometry) {
-          object.geometry.dispose();
-        }
-        
+        if (object.geometry) object.geometry.dispose();
         if (object.material) {
           if (Array.isArray(object.material)) {
             object.material.forEach(material => disposeMaterial(material));
@@ -809,22 +787,16 @@
     // Free material resources
     function disposeMaterial(material) {
       if (!material) return;
-      
-      // Release texture resources
       Object.keys(material).forEach(prop => {
         if (!material[prop]) return;
-        if (material[prop].isTexture) {
-          material[prop].dispose();
-        }
+        if (material[prop].isTexture) material[prop].dispose();
       });
-      
       material.dispose();
     }
     
     // Handle window resize
     function onWindowResize() {
       if (!camera || !renderer) return;
-      
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
@@ -843,16 +815,12 @@
         showErrorMessage('Your browser does not support WebGL');
         return false;
       }
-      
-      // Try to create WebGL context
       const canvas = document.createElement('canvas');
       const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
-      
       if (!gl) {
         showErrorMessage('WebGL is supported but disabled');
         return false;
       }
-      
       return true;
     }
     
@@ -860,22 +828,14 @@
     function showErrorMessage(message) {
       errorMessageElement.textContent = message;
       errorMessageElement.style.display = 'block';
-      
-      // Auto hide after 5 seconds
-      setTimeout(() => {
-        errorMessageElement.style.display = 'none';
-      }, 5000);
+      setTimeout(() => { errorMessageElement.style.display = 'none'; }, 5000);
     }
     
     // Show info message
     function showInfoMessage(message) {
       infoMessageElement.textContent = message;
       infoMessageElement.style.display = 'block';
-      
-      // Auto hide after 3 seconds
-      setTimeout(() => {
-        infoMessageElement.style.display = 'none';
-      }, 3000);
+      setTimeout(() => { infoMessageElement.style.display = 'none'; }, 3000);
     }
     
     // Hide all messages
@@ -885,4 +845,4 @@
     }
   </script>
 </body>
-</html> 
+</html>
