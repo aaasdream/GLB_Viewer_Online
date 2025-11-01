@@ -347,6 +347,79 @@
       color: var(--accent-color);
     }
     
+    .lighting-panel {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      background-color: var(--bg-secondary);
+      border-radius: 8px;
+      padding: 16px;
+      box-shadow: 0 2px 8px var(--shadow-color);
+      z-index: 10;
+      width: 280px;
+      max-width: calc(100% - 32px);
+    }
+    
+    .lighting-panel h3 {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      color: var(--text-color);
+    }
+    
+    .control-item {
+      margin-bottom: 16px;
+    }
+    
+    .control-item:last-child {
+      margin-bottom: 0;
+    }
+    
+    .control-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      margin-bottom: 6px;
+      color: var(--text-secondary);
+    }
+    
+    .control-value {
+      color: var(--accent-color);
+      font-weight: 500;
+    }
+    
+    .control-slider {
+      width: 100%;
+      height: 6px;
+      border-radius: 3px;
+      background: linear-gradient(to right, var(--bg-color), var(--accent-color));
+      outline: none;
+      -webkit-appearance: none;
+      appearance: none;
+      cursor: pointer;
+    }
+    
+    .control-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--accent-color);
+      cursor: pointer;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    }
+    
+    .control-slider::-moz-range-thumb {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--accent-color);
+      cursor: pointer;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+      border: none;
+    }
+    
     /* Animations */
     @keyframes fadeIn {
       from { opacity: 0; }
@@ -409,6 +482,37 @@
             <path d="M3 15v4c0 1.1.9 2 2 2h14a2 2 0 0 0 2-2v-4M17 8l-5-5-5 5M12 3v12"/>
           </svg>
         </button>
+        <button id="toggleRotate" class="toolbar-btn" title="Toggle Rotation Control">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+          </svg>
+        </button>
+      </div>
+      
+      <!-- Lighting Control Panel -->
+      <div class="lighting-panel">
+        <h3>Lighting</h3>
+        <div class="control-item">
+          <div class="control-label">
+            <span>Ambient Light</span>
+            <span class="control-value" id="ambientValue">0.6</span>
+          </div>
+          <input type="range" id="ambientSlider" class="control-slider" min="0" max="20" step="0.1" value="0.6" />
+        </div>
+        <div class="control-item">
+          <div class="control-label">
+            <span>Directional Light</span>
+            <span class="control-value" id="directionalValue">6.3</span>
+          </div>
+          <input type="range" id="directionalSlider" class="control-slider" min="0" max="50" step="0.1" value="6.3" />
+        </div>
+        <div class="control-item">
+          <div class="control-label">
+            <span>Bottom Light</span>
+            <span class="control-value" id="bottomValue">3.0</span>
+          </div>
+          <input type="range" id="bottomSlider" class="control-slider" min="0" max="10" step="0.1" value="3.0" />
+        </div>
       </div>
       
       <div class="loading-overlay" id="loading">
@@ -463,11 +567,14 @@
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
     import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
     import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+    import { TransformControls } from 'three/addons/controls/TransformControls.js';
   
     // Global variables
     let scene, camera, renderer, controls, model, groundPlane;
     let isModelLoaded = false;
     let lastModelUrl = '';
+    let ambientLight, directionalLight, bottomLight;
+    let transformControls;
     
     // DOM elements
     const modelUrlInput = document.getElementById('modelUrl');
@@ -478,6 +585,14 @@
     const errorMessageElement = document.getElementById('error-message');
     const infoMessageElement = document.getElementById('info-message');
     
+    // Lighting control elements
+    const ambientSlider = document.getElementById('ambientSlider');
+    const ambientValue = document.getElementById('ambientValue');
+    const directionalSlider = document.getElementById('directionalSlider');
+    const directionalValue = document.getElementById('directionalValue');
+    const bottomSlider = document.getElementById('bottomSlider');
+    const bottomValue = document.getElementById('bottomValue');
+    
     // Modal elements
     const loadModelModal = document.getElementById('loadModelModal');
     const openLoadMenu = document.getElementById('openLoadMenu');
@@ -487,6 +602,46 @@
     loadUrlBtn.addEventListener('click', loadModelFromUrl);
     fileInput.addEventListener('change', loadModelFromFile);
     window.addEventListener('resize', onWindowResize);
+    
+    // Lighting control event listeners
+    ambientSlider.addEventListener('input', (e) => {
+      const value = parseFloat(e.target.value);
+      ambientLight.intensity = value;
+      ambientValue.textContent = value.toFixed(1);
+    });
+    
+    directionalSlider.addEventListener('input', (e) => {
+      const value = parseFloat(e.target.value);
+      directionalLight.intensity = value;
+      directionalValue.textContent = value.toFixed(1);
+    });
+    
+    bottomSlider.addEventListener('input', (e) => {
+      const value = parseFloat(e.target.value);
+      bottomLight.intensity = value;
+      bottomValue.textContent = value.toFixed(1);
+    });
+    
+    // Toggle rotation control
+    const toggleRotateBtn = document.getElementById('toggleRotate');
+    toggleRotateBtn.addEventListener('click', () => {
+      if (!model) {
+        showErrorMessage('Please load a model first');
+        return;
+      }
+      
+      if (transformControls.visible) {
+        // Hide transform controls
+        transformControls.detach();
+        transformControls.visible = false;
+        toggleRotateBtn.classList.remove('active');
+      } else {
+        // Show transform controls
+        transformControls.attach(model);
+        transformControls.visible = true;
+        toggleRotateBtn.classList.add('active');
+      }
+    });
     
     // Modal event listeners
     openLoadMenu.addEventListener('click', () => {
@@ -543,13 +698,13 @@
         scene.background = new THREE.Color(0x242424);
         
         // Add a soft ambient light to ensure the whole model is lit.
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
         scene.add(ambientLight);
         
         // Add a strong directional light to create highlights and shadows.
         // NOTE: Newer Three.js versions use physically-based light units.
         // A higher intensity value like Math.PI is needed for a visible effect.
-        const directionalLight = new THREE.DirectionalLight(0xffffff, Math.PI * 2);
+        directionalLight = new THREE.DirectionalLight(0xffffff, Math.PI * 2);
         directionalLight.position.set(5, 10, 7.5);
         
         // Configure the light to cast shadows
@@ -565,6 +720,15 @@
         directionalLight.shadow.camera.top = 15;
         directionalLight.shadow.camera.bottom = -15;
         scene.add(directionalLight);
+        
+        // Add a bottom directional light to illuminate the underside of the model
+        // Position it diagonally opposite to the top directional light
+        bottomLight = new THREE.DirectionalLight(0xffffff, 3);
+        bottomLight.position.set(-5, -10, -7.5);
+        // Set the target to point towards the model center
+        bottomLight.target.position.set(0, 0, 0);
+        scene.add(bottomLight);
+        scene.add(bottomLight.target);
         
         // Create camera
         camera = new THREE.PerspectiveCamera(
@@ -612,6 +776,18 @@
         controls = new OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
         controls.dampingFactor = 0.05;
+        
+        // Create transform controls for rotation
+        transformControls = new TransformControls(camera, renderer.domElement);
+        transformControls.setMode('rotate');
+        transformControls.setSize(1.2);
+        transformControls.visible = false;
+        scene.add(transformControls);
+        
+        // When using transform controls, disable orbit controls
+        transformControls.addEventListener('dragging-changed', function(event) {
+          controls.enabled = !event.value;
+        });
         
         // Start animation loop
         animate();
@@ -738,6 +914,14 @@
               
               controls.target.copy(center);
               controls.update();
+              
+              // Reset transform controls when loading new model
+              if (transformControls) {
+                transformControls.detach();
+                transformControls.visible = false;
+                const toggleBtn = document.getElementById('toggleRotate');
+                if (toggleBtn) toggleBtn.classList.remove('active');
+              }
               
               loadingElement.style.display = 'none';
               isModelLoaded = true;
